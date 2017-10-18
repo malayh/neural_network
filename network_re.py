@@ -1,4 +1,5 @@
 import numpy as np
+from random import shuffle
 
 class Layer:
     #Every layer is has a dictionary
@@ -68,6 +69,7 @@ class Network:
 
 
 
+    #Squared error, just to display progress
     def error(self,expected,output):
         _temp=expected-output
         _temp=_temp**2
@@ -81,6 +83,7 @@ class Network:
     #Backpropagate the error and calcuate the delta_vectors
     #Alter weights according to the formula
     def backward_pass(self,input_vector,output_vector):
+        #feed the input vector forward
         self.feed_forward(input_vector)
 
         #calculating delta_vector foe the output layer
@@ -116,38 +119,84 @@ class Network:
         return weight_gradient
 
 
-    def train(self,input_vector,output_vector):
-        while(self.error(output_vector,self.layers[len(self.layers)-1].data["output_vector"])>0.00001):
-            wg=self.backward_pass(input_vector,output_vector)
-            for count,wm in enumerate(self.weight_matrices):
-                self.weight_matrices[count]-=0.1*wg[count]
-                print(self.error(output_vector,self.layers[len(self.layers)-1].data["output_vector"]))
+    #THIS IS A TEST train method
+    # def train(self,input_vector,output_vector):
+    #     while(self.error(output_vector,self.layers[len(self.layers)-1].data["output_vector"])>0.00001):
+    #         wg=self.backward_pass(input_vector,output_vector)
+    #         for count,wm in enumerate(self.weight_matrices):
+    #             self.weight_matrices[count]-=0.1*wg[count]
+    #         print(self.error(output_vector,self.layers[len(self.layers)-1].data["output_vector"]))
 
 
 
+
+    #train method will train the Network
+    #dataSet will acccept a list of dictionaries, each dictionary having input and output pairs, indexed as "input","output"
+    #it will acccept learning rate as an real number, which at default is 0.1
+    #stop_at specify the error at which algorithm stop iterating
+
+    def train(self,dataSet,learning_rate=0.1,stop_at=0.01):
+        it=0
+        while(1):
+            count_it=0
+            error=0
+
+            shuffle(dataSet)
+
+            for dataPoint in dataSet:
+                weight_gradient=self.backward_pass(dataPoint["input"],dataPoint["output"])
+
+                #changing the weights using the weight_gradient calculated
+                for count,weights in enumerate(self.weight_matrices):
+                    self.weight_matrices[count]-=learning_rate*weight_gradient[count]
+
+                it+=1
+                error+=self.error(dataPoint["output"],self.layers[len(self.layers)-1].data["output_vector"])
+
+            if(count_it==5000):
+                count_it=0
+                learning_rate=learning_rate-0.00001
+
+            #After one epoch
+            print("Iterations:{}    Error:{}".format(it,error/len(dataSet)))
+
+
+
+
+            if(error/len(dataSet)<stop_at):
+                #Write weights to file and exit
+                np.savez("./Data/weight_matrices",self.weight_matrices)
+                break
+
+    def predict(self,input_vector,thrashold=0.9):
+        self.feed_forward(input_vector)
+        _output=self.layers[len(self.layers)-1].data["output_vector"]
+        _temp=[]
+        for i in _output:
+            if(i[0]>=thrashold):
+                _temp.append(1)
+            else:
+                _temp.append(0)
+
+        return np.array([_temp]).transpose()
+
+
+
+    def load_weights(self,weight_matrices):
+        self.weight_matrices=weight_matrices
 
 
 
 if(__name__=="__main__"):
-    net=Network((3,2,4))
+    net=Network((256,5,3,10))
 
-    a=np.array([[2,3,4]]).transpose()
-    b=np.array([[0,0,1,0]]).transpose()
-    net.train(a,b)
-    net.feed_forward(a)
-    for i in net.layers[len(net.layers)-1].data["output_vector"]:
-        if(i[0]>0.95):
-            print("1")
-        else:
-            print("0")
 
-    # for c,i in enumerate(net.layers):
-    #     print("Layer:{}".format(c))
-    #     print("\n\n")
-    #     for key,value in i.data.items():
-    #         print("{}:".format(key))
-    #         print("{}".format(value))
-    #         print("\n")
+    npz=np.load("./Data/trainingSet.npz")
+    dataSet=[]
+    for i,o in zip(npz["arr_0"],npz["arr_1"]):
+        _dict={}
+        _dict["input"]=i
+        _dict["output"]=o
 
-    # for i in net.weight_matrices:
-    #     print(i.shape)
+        dataSet.append(_dict)
+    net.train(dataSet,learning_rate=0.015,stop_at=0.905)
